@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+   <link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css"
+>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+</head>
+<body>
+    <header>
+        <h1 class="title">HomeLab Dashboard</h1>
+    </header>
+    <main>
+        <div class="fixed-grid is-col-min-8">
+            <div class="grid">
+            {% for service in services %}
+                <div class=" cell box">
+                    <a href="http://{{service.address}}:{{service.port}}">
+                        {{service.name}}
+                    </a><br>
+                    Is online: {{service.is_online}}
+                </div>
+            {% endfor %}
+            <div class="cell box">
+                <div class="modal">
+                    <div class="modal-background"></div>
+                     <div class="modal-content">
+                        <p>Form</p>
+                    </div>
+                    <button class="modal-close is-large" aria-label="close"></button>
+                </div>
+            </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
