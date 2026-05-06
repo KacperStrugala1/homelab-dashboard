@@ -16,4 +16,5 @@ COPY . /app/
 EXPOSE 8080
 
 #command line commands
-CMD [ "python", "/app/homelab_dashboard/manage.py", "runserver", "0.0.0.0:8080"]
+
+CMD [ "python", "/app/homelab_dashboard/manage.py", "makemigrations", "python", "/app/homelab_dashboard/manage.py", "migrate", "python", "/app/homelab_dashboard/manage.py", "runserver", "0.0.0.0:8080"]
