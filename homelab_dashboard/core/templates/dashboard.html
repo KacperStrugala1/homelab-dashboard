@@ -1,40 +1,103 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pl">
 <head>
     <meta charset="UTF-8">
-   <link
-  rel="stylesheet"
-  href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css"
->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard</title>
+    <title>HomeLab Dashboard</title>
 </head>
 <body>
-    <header>
-        <h1 class="title">HomeLab Dashboard</h1>
-    </header>
-    <main>
-        <div class="fixed-grid is-col-min-8">
-            <div class="grid">
-            {% for service in services %}
-                <div class=" cell box">
-                    <a href="http://{{service.address}}:{{service.port}}">
-                        {{service.name}}
-                    </a><br>
-                    Is online: {{service.is_online}}
-                </div>
-            {% endfor %}
-            <div class="cell box">
-                <div class="modal">
-                    <div class="modal-background"></div>
-                     <div class="modal-content">
-                        <p>Form</p>
-                    </div>
-                    <button class="modal-close is-large" aria-label="close"></button>
-                </div>
+
+    <section class="hero is-info is-small">
+        <div class="hero-body">
+            <div class="container is-flex is-justify-content-space-between is-align-items-center">
+                <h1 class="title mb-0">HomeLab Dashboard</h1>
+                <button class="button is-info is-light js-modal-trigger" data-target="form-modal">
+                    <strong>+ New Service</strong>
+                </button>
             </div>
+        </div>
+    </section>
+
+    <main class="section">
+        <div class="container">
+            <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
+                <div class="grid">
+                    {% for service in services %}
+                        <div class="cell">
+                            <div class="card service-card">
+                                <div class="card-content">
+                                    <p class="title is-5 mb-3">{{ service.name }}</p>
+                                    {% if service.is_online %}
+                                        <span class="tag is-success">
+                                             Online
+                                        </span>
+                                    {% else %}
+                                        <span class="tag is-danger">
+                                             Offline
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <footer class="card-footer">
+                                    {% if service.url_name %}
+                                        <a href="{{service.url_name}}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">
+                                            Open App
+                                        </a>
+                                    {% else %}
+                                        <a href="http://{{service.address}}:{{service.port}}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">
+                                            Open App
+                                        </a>
+                                    {% endif %}
+                                </footer>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
             </div>
         </div>
     </main>
+
+    <main class="section">
+        <div class="container">
+            <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
+                <div class="grid">
+                    {% for media_panel in media_panels %}
+                        <div class="cell">
+                            <div class="card service-card">
+                                <div class="card-content">
+                                    <p class="title is-5 mb-3">{{ media_panel.name }}</p>
+                                    
+                                </div>
+                                <footer class="card-footer">
+                                        <a href="{{media_panel.url_name}}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">
+                                            Open App
+                                        </a>
+                                </footer>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="form-modal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Add service</p>
+                <button class="delete" aria-label="close"></button>
+            </header>
+            <section class="modal-card-body">
+                <p>Add service</p>
+            </section>
+            <footer class="modal-card-foot is-justify-content-flex-end">
+                <button class="button">Cancel</button>
+                <button class="button is-info">Save</button>
+            </footer>
+        </div>
+    </div>
+
+   
 </body>
 </html>
