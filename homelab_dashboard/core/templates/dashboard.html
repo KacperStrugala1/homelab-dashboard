@@ -5,6 +5,42 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HomeLab Dashboard</title>
+    <style>
+        .service-card {
+            height: 100%;
+        }
+
+        .service-card-header {
+            position: relative;
+            padding-left: 4.75rem;
+        }
+
+        .service-logo {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: 0.85rem;
+            object-fit: cover;
+            box-shadow: 0 8px 20px rgba(10, 10, 10, 0.12);
+            background: white;
+            padding: 0.35rem;
+        }
+
+        .scores-strip {
+            margin-top: -0.75rem;
+        }
+
+        .score-card {
+            height: 100%;
+        }
+
+        .modal-card {
+            width: min(92vw, 640px);
+        }
+
+    </style>
 </head>
 <body>
 
@@ -19,14 +55,46 @@
         </div>
     </section>
 
+    <section class="section pt-6 scores-strip">
+        <div class="container">
+        
+            {% if nba_scores_error %}
+                <div class="notification is-warning is-light">{{ nba_scores_error }}</div>
+            {% elif nba_scores %}
+                <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
+                    <div class="grid">
+                        {% for game in nba_scores %}
+                            <div class="cell">
+                                <div class="card score-card">
+                                    <div class="card-content">
+                                        <p class="title is-6 mb-2">{{ game.away_team }} vs {{ game.home_team }}</p>
+                                        <div class="is-flex is-justify-content-space-between is-align-items-center mb-2">
+                                            <span class="tag is-light">{{ game.status }}</span>
+                                            <span class="has-text-grey is-size-7">{{ game.date }}</span>
+                                        </div>
+                                        <p class="title is-4 mb-0">{{ game.away_score }} - {{ game.home_score }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="notification is-info is-light">No recent NBA scores were returned.</div>
+            {% endif %}
+        </div>
+    </section>
+
     <main class="section">
         <div class="container">
             <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
                 <div class="grid">
-                    {% for service in services %}
+                    {% for service_item in services %}
+                        {% with service=service_item.service %}
                         <div class="cell">
                             <div class="card service-card">
-                                <div class="card-content">
+                                <div class="card-content service-card-header">
+                                    <img class="service-logo" src="{{ service_item.logo_url }}" alt="{{ service_item.logo_alt }}" onerror="this.onerror=null;this.src='{{ service_item.fallback_logo_url }}';">
                                     <p class="title is-5 mb-3">{{ service.name }}</p>
                                     {% if service.is_online %}
                                         <span class="tag is-success">
@@ -51,6 +119,7 @@
                                 </footer>
                             </div>
                         </div>
+                        {% endwith %}
                     {% endfor %}
                 </div>
             </div>
@@ -81,22 +150,112 @@
         </div>
     </main>
 
-    <div id="form-modal" class="modal">
+    <div id="form-modal" class="modal{% if form_modal_open %} is-active{% endif %}">
         <div class="modal-background"></div>
         <div class="modal-card">
             <header class="modal-card-head">
                 <p class="modal-card-title">Add service</p>
                 <button class="delete" aria-label="close"></button>
             </header>
+            <form method="post" action="{% url 'homepage' %}">
+                {% csrf_token %}
             <section class="modal-card-body">
-                <p>Add service</p>
+                    <div class="field">
+                        <label class="label" for="id_name">Name</label>
+                        <div class="control">
+                            {{ form.name }}
+                        </div>
+                        {% for error in form.name.errors %}
+                            <p class="help is-danger">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="field">
+                        <label class="label" for="id_address">Address</label>
+                        <div class="control">
+                            {{ form.address }}
+                        </div>
+                        {% for error in form.address.errors %}
+                            <p class="help is-danger">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="columns">
+                        <div class="column">
+                            <div class="field">
+                                <label class="label" for="id_port">Port</label>
+                                <div class="control">
+                                    {{ form.port }}
+                                </div>
+                                {% for error in form.port.errors %}
+                                    <p class="help is-danger">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="column">
+                            <div class="field">
+                                <label class="label" for="id_url_name">URL</label>
+                                <div class="control">
+                                    {{ form.url_name }}
+                                </div>
+                                {% for error in form.url_name.errors %}
+                                    <p class="help is-danger">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="field">
+                        <label class="checkbox">
+                            {{ form.is_online }}
+                            Mark as online
+                        </label>
+                        {% for error in form.is_online.errors %}
+                            <p class="help is-danger">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+
+                    {% if form.non_field_errors %}
+                        <div class="notification is-danger is-light">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
             </section>
             <footer class="modal-card-foot is-justify-content-flex-end">
-                <button class="button">Cancel</button>
-                <button class="button is-info">Save</button>
+                <button type="button" class="button js-modal-close">Cancel</button>
+                <button type="submit" class="button is-info">Save</button>
             </footer>
+            </form>
         </div>
     </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const openers = document.querySelectorAll(".js-modal-trigger");
+            const closers = document.querySelectorAll(".js-modal-close, .modal-background, .modal .delete");
+
+            const openModal = (modal) => modal.classList.add("is-active");
+            const closeModal = (modal) => modal.classList.remove("is-active");
+
+            openers.forEach((trigger) => {
+                trigger.addEventListener("click", () => {
+                    const modal = document.getElementById(trigger.dataset.target);
+                    if (modal) {
+                        openModal(modal);
+                    }
+                });
+            });
+
+            closers.forEach((element) => {
+                element.addEventListener("click", () => {
+                    const modal = element.closest(".modal");
+                    if (modal) {
+                        closeModal(modal);
+                    }
+                });
+            });
+        });
+    </script>
 
    
 </body>

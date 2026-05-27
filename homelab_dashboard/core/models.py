@@ -6,6 +6,7 @@ class Service(models.Model):
     port = models.PositiveIntegerField()
     url_name = models.CharField(max_length=150, blank=True)
     is_online = models.BooleanField()
+    status_checked_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
