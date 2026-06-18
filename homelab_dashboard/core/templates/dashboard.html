@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
@@ -40,6 +40,39 @@
             width: min(92vw, 640px);
         }
 
+        .chart-box {
+            height: 80px;
+        }
+
+        .uptime-bar {
+            display: flex;
+            gap: 3px;
+            align-items: flex-end;
+            margin-top: 0.4rem;
+        }
+
+        .uptime-seg {
+            flex: 1;
+            height: 28px;
+            border-radius: 4px;
+            min-width: 10px;
+            transition: opacity .15s;
+        }
+        .uptime-seg:hover { opacity: .75; cursor: default; }
+
+        .uptime-seg--online  { background: #48c78e; }
+        .uptime-seg--offline { background: #f14668; }
+        .uptime-seg--unknown { background: #dbdbdb; }
+
+        .uptime-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 0.25rem;
+            font-size: 0.7rem;
+            color: #7a7a7a;
+        }
+
     </style>
 </head>
 <body>
@@ -57,21 +90,50 @@
                     ({{ system_stats.ram_percent }}%)
 
                 </p>
-                <button class="button is-info is-light js-modal-trigger" data-target="form-modal">
-                    <strong>+ New Service</strong>
-                </button>
+                <div class="buttons">
+                    <button class="button is-info is-light js-modal-trigger" data-target="category-modal">
+                        <strong>+ Category</strong>
+                    </button>
+                    <button class="button is-info is-light js-modal-trigger" data-target="form-modal">
+                        <strong>+ New Service</strong>
+                    </button>
+                </div>
             </div>
         </div>
     </section>
 
     <section class="section pt-6 scores-strip">
         <div class="container">
-        
-            {% if nba_scores_error %}
-                <div class="notification is-warning is-light">{{ nba_scores_error }}</div>
-            {% elif nba_scores %}
-                <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
-                    <div class="grid">
+            <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
+                <div class="grid">
+
+                    <div class="cell">
+                        <div class="card score-card">
+                            <div class="card-content">
+                                <p class="title is-6 mb-2">CPU Usage</p>
+                                <div class="chart-box">
+                                    <canvas id="cpuChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="cell">
+                        <div class="card score-card">
+                            <div class="card-content">
+                                <p class="title is-6 mb-2">RAM Usage</p>
+                                <div class="chart-box">
+                                    <canvas id="ramChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if nba_scores_error %}
+                        <div class="cell">
+                            <div class="notification is-warning is-light">{{ nba_scores_error }}</div>
+                        </div>
+                    {% else %}
                         {% for game in nba_scores %}
                             <div class="cell">
                                 <div class="card score-card">
@@ -86,113 +148,79 @@
                                 </div>
                             </div>
                         {% endfor %}
-                    </div>
+                    {% endif %}
+
                 </div>
-            {% else %}
-                <div class="notification is-info is-light">No recent NBA scores were returned.</div>
-            {% endif %}
+            </div>
         </div>
     </section>
-    <section class="section pt-0">
-    <div class="container">
-
-        <div class="columns">
-
-            <div class="column">
-                <div class="box">
-                    <h2 class="title is-5">CPU Usage</h2>
-                    <canvas id="cpuChart"></canvas>
-                </div>
-            </div>
-
-            <div class="column">
-                <div class="box">
-                    <h2 class="title is-5">RAM Usage</h2>
-                    <canvas id="ramChart"></canvas>
-                </div>
-            </div>
-
-        </div>
-
-    </div>
-</section>
-<div class="field">
-
-    <label class="label">
-        Category
-    </label>
-
-    <div class="control">
-
-        {{ form.category }}
-
-    </div>
-
-</div>
     <main class="section">
         <div class="container">
-            <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
-                <div class="grid">
-                    {% for service_item in services %}
-                        {% with service=service_item.service %}
-                        <div class="cell">
-                            <div class="card service-card">
-                                <div class="card-content service-card-header">
-                                    <img class="service-logo" src="{{ service_item.logo_url }}" alt="{{ service_item.logo_alt }}" onerror="this.onerror=null;this.src='{{ service_item.fallback_logo_url }}';">
-                                    <p class="title is-5 mb-3">{{ service.name }}</p>
-                                    {% if service.category %}
-                                    <span class="tag is-info is-light mb-2">
-                                        {{ service.category.name }}
-                                    </span>
-                                    {% endif %}
-                                    {% if service.is_online %}
-                                        <span class="tag is-success">
-                                             Online
-                                        </span>
-                                    {% else %}
-                                        <span class="tag is-danger">
-                                             Offline
-                                        </span>
-                                    {% endif %}
-                                </div>
-                                <div class="mt-3">
+            {% for group in category_groups %}
+                <h2 class="title is-5 mb-3">{{ group.name|default:"Uncategorised" }}</h2>
+                <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen mb-5">
+                    <div class="grid">
+                        {% for service_item in group.items %}
+                            {% with service=service_item.service %}
+                            <div class="cell">
+                                <div class="card service-card">
+                                    <div class="card-content service-card-header">
+                                        <img class="service-logo" src="{{ service_item.logo_url }}" alt="{{ service_item.logo_alt }}" onerror="this.onerror=null;this.src='{{ service_item.fallback_logo_url }}';">
+                                        <p class="title is-5 mb-2">{{ service.name }}</p>
 
-                                    <p class="is-size-7 has-text-grey mb-1">
-                                        Historia
-                                    </p>
+                                        <div class="is-flex is-align-items-center" style="gap:.5rem;">
+                                            {% if service_item.is_online %}
+                                                <span class="tag is-success">Online</span>
+                                            {% else %}
+                                                <span class="tag is-danger">Offline</span>
+                                            {% endif %}
+                                            {% if service_item.uptime_pct is not None %}
+                                                <span class="is-size-7 has-text-grey">{{ service_item.uptime_pct }}% uptime</span>
+                                            {% endif %}
+                                        </div>
 
-                                    {% for history in service_item.history %}
-
-                                        {% if history.is_online %}
-                                            <span class="tag is-success is-rounded"></span>
+                                        <div class="uptime-bar">
+                                            {% if service_item.history %}
+                                                {% for h in service_item.history %}
+                                                    {% if h.is_online %}
+                                                        <span class="uptime-seg uptime-seg--online" title="Online"></span>
+                                                    {% else %}
+                                                        <span class="uptime-seg uptime-seg--offline" title="Offline"></span>
+                                                    {% endif %}
+                                                {% endfor %}
+                                            {% else %}
+                                                <span class="uptime-seg uptime-seg--unknown" title="No data"></span>
+                                                <span class="uptime-seg uptime-seg--unknown" title="No data"></span>
+                                                <span class="uptime-seg uptime-seg--unknown" title="No data"></span>
+                                                <span class="uptime-seg uptime-seg--unknown" title="No data"></span>
+                                                <span class="uptime-seg uptime-seg--unknown" title="No data"></span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="uptime-meta">
+                                            <span>older</span>
+                                            <span>recent</span>
+                                        </div>
+                                    </div>
+                                    <footer class="card-footer">
+                                        {% if service.url_name %}
+                                            <a href="{{ service.url_name }}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">Open App</a>
                                         {% else %}
-                                            <span class="tag is-danger is-rounded"></span>
+                                            <a href="http://{{ service.address }}:{{ service.port }}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">Open App</a>
                                         {% endif %}
-
-                                    {% endfor %}
-
+                                    </footer>
                                 </div>
-                                <footer class="card-footer">
-                                    {% if service.url_name %}
-                                        <a href="{{service.url_name}}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">
-                                            Open App
-                                        </a>
-                                    {% else %}
-                                        <a href="http://{{service.address}}:{{service.port}}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">
-                                            Open App
-                                        </a>
-                                    {% endif %}
-                                </footer>
                             </div>
-                        </div>
-                        {% endwith %}
-                    {% endfor %}
+                            {% endwith %}
+                        {% endfor %}
+                    </div>
                 </div>
-            </div>
+            {% empty %}
+                <p class="has-text-grey">No services added yet.</p>
+            {% endfor %}
         </div>
     </main>
 
-    <main class="section">
+    <section class="section">
         <div class="container">
             <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
                 <div class="grid">
@@ -201,20 +229,21 @@
                             <div class="card service-card">
                                 <div class="card-content">
                                     <p class="title is-5 mb-3">{{ media_panel.name }}</p>
-                                    
                                 </div>
+                                {% if media_panel.url_name %}
                                 <footer class="card-footer">
-                                        <a href="{{media_panel.url_name}}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">
-                                            Open App
-                                        </a>
+                                    <a href="{{ media_panel.url_name }}" class="card-footer-item has-text-info has-text-weight-bold" target="_blank">
+                                        Open App
+                                    </a>
                                 </footer>
+                                {% endif %}
                             </div>
                         </div>
                     {% endfor %}
                 </div>
             </div>
         </div>
-    </main>
+    </section>
 
     <div id="form-modal" class="modal{% if form_modal_open %} is-active{% endif %}">
         <div class="modal-background"></div>
@@ -232,6 +261,18 @@
                             {{ form.name }}
                         </div>
                         {% for error in form.name.errors %}
+                            <p class="help is-danger">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+
+                    <div class="field">
+                        <label class="label" for="id_category">Category</label>
+                        <div class="control">
+                            <div class="select is-fullwidth">
+                                {{ form.category }}
+                            </div>
+                        </div>
+                        {% for error in form.category.errors %}
                             <p class="help is-danger">{{ error }}</p>
                         {% endfor %}
                     </div>
@@ -271,16 +312,6 @@
                         </div>
                     </div>
 
-                    <div class="field">
-                        <label class="checkbox">
-                            {{ form.is_online }}
-                            Mark as online
-                        </label>
-                        {% for error in form.is_online.errors %}
-                            <p class="help is-danger">{{ error }}</p>
-                        {% endfor %}
-                    </div>
-
                     {% if form.non_field_errors %}
                         <div class="notification is-danger is-light">
                             {{ form.non_field_errors }}
@@ -291,6 +322,40 @@
                 <button type="button" class="button js-modal-close">Cancel</button>
                 <button type="submit" class="button is-info">Save</button>
             </footer>
+            </form>
+        </div>
+    </div>
+
+    <div id="category-modal" class="modal{% if category_modal_open %} is-active{% endif %}">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Add category</p>
+                <button class="delete" aria-label="close"></button>
+            </header>
+            <form method="post" action="{% url 'add_category' %}">
+                {% csrf_token %}
+                <section class="modal-card-body">
+                    <div class="field">
+                        <label class="label" for="id_category_name">Name</label>
+                        <div class="control">
+                            {{ category_form.name }}
+                        </div>
+                        {% for error in category_form.name.errors %}
+                            <p class="help is-danger">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+
+                    {% if category_form.non_field_errors %}
+                        <div class="notification is-danger is-light">
+                            {{ category_form.non_field_errors }}
+                        </div>
+                    {% endif %}
+                </section>
+                <footer class="modal-card-foot is-justify-content-flex-end">
+                    <button type="button" class="button js-modal-close">Cancel</button>
+                    <button type="submit" class="button is-info">Save</button>
+                </footer>
             </form>
         </div>
     </div>
@@ -323,83 +388,38 @@
         });
     </script>
 
-   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 {{ cpu_chart|json_script:"cpu-chart" }}
 {{ ram_chart|json_script:"ram-chart" }}
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+    const cpu = JSON.parse(document.getElementById("cpu-chart").textContent);
+    const ram = JSON.parse(document.getElementById("ram-chart").textContent);
 
-const cpu =
-JSON.parse(
-document.getElementById("cpu-chart").textContent
-);
+    const chartOptions = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { min: 0, max: 100 } },
+    };
 
-const ram =
-JSON.parse(
-document.getElementById("ram-chart").textContent
-);
+    new Chart(document.getElementById("cpuChart"), {
+        type: "line",
+        data: {
+            labels: cpu.map((_, i) => i),
+            datasets: [{ label: "CPU %", data: cpu, fill: true, tension: 0.4 }],
+        },
+        options: chartOptions,
+    });
 
-new Chart(
-
-document.getElementById("cpuChart"),
-
-{
-
-type: "line",
-
-data: {
-
-labels: cpu.map((_, i) => i),
-
-datasets: [{
-
-label: "CPU %",
-
-data: cpu,
-
-fill: true,
-
-tension: .4
-
-}]
-
-}
-
-}
-
-);
-
-new Chart(
-
-document.getElementById("ramChart"),
-
-{
-
-type: "line",
-
-data: {
-
-labels: ram.map((_, i) => i),
-
-datasets: [{
-
-label: "RAM %",
-
-data: ram,
-
-fill: true,
-
-tension: .4
-
-}]
-
-}
-
-}
-
-);
-
+    new Chart(document.getElementById("ramChart"), {
+        type: "line",
+        data: {
+            labels: ram.map((_, i) => i),
+            datasets: [{ label: "RAM %", data: ram, fill: true, tension: 0.4 }],
+        },
+        options: chartOptions,
+    });
 </script>
 </body>
 </html>

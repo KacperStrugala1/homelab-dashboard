@@ -2,26 +2,23 @@ import json
 import base64
 import hashlib
 import psutil
-import requests
 from functools import lru_cache
 from datetime import timedelta
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote_plus
 from urllib.error import URLError, HTTPError
 from urllib.request import Request, urlopen
-from urllib.parse import quote_plus
 
 from django.shortcuts import redirect, render
 from django.utils import timezone
 from django.views import View
-from .forms import ServiceForm
-from .models import Service, MediaPanel
+from .forms import CategoryForm, ServiceForm
+from .models import Service, MediaPanel, SystemMetric, Category, ServiceStatus
 
 
 NBA_SCORES_URL = "https://www.thesportsdb.com/api/v1/json/3/eventspastleague.php?id=4387"
 CLEARBIT_COMPANY_SEARCH_URL = "https://autocomplete.clearbit.com/v1/companies/suggest?query={query}"
 SERVICE_STATUS_CHECK_TIMEOUT = 3
 SERVICE_STATUS_REFRESH_INTERVAL = timedelta(minutes=30)
-from .models import SystemMetric, Category
 
 
 def save_system_metrics():
@@ -189,6 +186,7 @@ def _refresh_service_status_if_needed(service, now=None):
     service.is_online = current_status
     service.status_checked_at = now
     service.save(update_fields=["is_online", "status_checked_at"])
+    ServiceStatus.objects.create(service=service, is_online=current_status)
     return current_status
 
 
@@ -253,44 +251,62 @@ def fetch_recent_nba_scores(limit=5):
     return scores, None
 
 
-def build_home_context(form=None, form_modal_open=False):
+def build_home_context(form=None, form_modal_open=False, category_form=None, category_modal_open=False):
+    save_system_metrics()
     nba_scores, nba_scores_error = fetch_recent_nba_scores()
-    metrics = SystemMetric.objects.order_by("-created_at")[:20]
+    metrics = list(SystemMetric.objects.order_by("-created_at")[:20])
+    cpu = [m.cpu_percent for m in reversed(metrics)]
+    ram = [m.ram_percent for m in reversed(metrics)]
 
-    cpu = []
-    ram = []
-
-    for m in reversed(metrics):
-
-        cpu.append(m.cpu_percent)
-        ram.append(m.ram_percent)
-    services = []
-
-    for service in Service.objects.all():
-
+    # Build display items with history, ordered by name
+    service_items = []
+    for service in Service.objects.select_related("category").order_by("name"):
         item = build_service_display(service)
+        # Fetch last 10 checks newest-first, then reverse for left→right display
+        recent = list(service.history.all()[:10])
+        recent.reverse()
+        uptime_pct = (
+            round(sum(1 for h in recent if h.is_online) / len(recent) * 100)
+            if recent else None
+        )
+        item["history"] = recent
+        item["uptime_pct"] = uptime_pct
+        service_items.append(item)
 
-        item["history"] = service.history.all()[:8]
+    # Group by category; uncategorised services go last
+    groups_map = {}
+    group_order = []
+    uncategorised = []
+    for item in service_items:
+        cat = item["service"].category
+        if cat is None:
+            uncategorised.append(item)
+        else:
+            if cat.pk not in groups_map:
+                groups_map[cat.pk] = {"name": cat.name, "items": []}
+                group_order.append(groups_map[cat.pk])
+            groups_map[cat.pk]["items"].append(item)
+    if uncategorised:
+        group_order.append({"name": None, "items": uncategorised})
 
-        services.append(item)
     return {
-        "services": [build_service_display(service) for service in Service.objects.all().order_by("name")],
+        "category_groups": group_order,
         "media_panels": MediaPanel.objects.all(),
         "form": form or ServiceForm(),
         "form_modal_open": form_modal_open,
+        "category_form": category_form or CategoryForm(),
+        "category_modal_open": category_modal_open,
         "nba_scores": nba_scores,
         "nba_scores_error": nba_scores_error,
         "system_stats": get_system_stats(),
-        "services": services,
         "cpu_chart": cpu,
         "ram_chart": ram,
-        "categories": Category.objects.prefetch_related("service_set"),
     }
     
 
 class HomeView(View):
     template_name = "dashboard.html"
-    
+
     def get(self, request):
         return render(request, self.template_name, build_home_context())
 
@@ -299,5 +315,17 @@ class HomeView(View):
         if form.is_valid():
             form.save()
             return redirect("homepage")
-
         return render(request, self.template_name, build_home_context(form=form, form_modal_open=True))
+
+
+class CategoryView(View):
+    def post(self, request):
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("homepage")
+        return render(
+            request,
+            "dashboard.html",
+            build_home_context(category_form=form, category_modal_open=True),
+        )
