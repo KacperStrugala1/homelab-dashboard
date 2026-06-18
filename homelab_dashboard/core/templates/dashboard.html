@@ -48,6 +48,15 @@
         <div class="hero-body">
             <div class="container is-flex is-justify-content-space-between is-align-items-center">
                 <h1 class="title mb-0">HomeLab Dashboard</h1>
+
+                <p class="subtitle is-6 mb-0">
+                    CPU: {{ system_stats.cpu_percent }}%
+                    |
+                    RAM:
+                    {{ system_stats.ram_used }}/{{ system_stats.ram_total }} GB
+                    ({{ system_stats.ram_percent }}%)
+
+                </p>
                 <button class="button is-info is-light js-modal-trigger" data-target="form-modal">
                     <strong>+ New Service</strong>
                 </button>
@@ -84,7 +93,42 @@
             {% endif %}
         </div>
     </section>
+    <section class="section pt-0">
+    <div class="container">
 
+        <div class="columns">
+
+            <div class="column">
+                <div class="box">
+                    <h2 class="title is-5">CPU Usage</h2>
+                    <canvas id="cpuChart"></canvas>
+                </div>
+            </div>
+
+            <div class="column">
+                <div class="box">
+                    <h2 class="title is-5">RAM Usage</h2>
+                    <canvas id="ramChart"></canvas>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</section>
+<div class="field">
+
+    <label class="label">
+        Category
+    </label>
+
+    <div class="control">
+
+        {{ form.category }}
+
+    </div>
+
+</div>
     <main class="section">
         <div class="container">
             <div class="fixed-grid has-1-cols-mobile has-2-cols-tablet has-3-cols-desktop has-4-cols-widescreen">
@@ -96,6 +140,11 @@
                                 <div class="card-content service-card-header">
                                     <img class="service-logo" src="{{ service_item.logo_url }}" alt="{{ service_item.logo_alt }}" onerror="this.onerror=null;this.src='{{ service_item.fallback_logo_url }}';">
                                     <p class="title is-5 mb-3">{{ service.name }}</p>
+                                    {% if service.category %}
+                                    <span class="tag is-info is-light mb-2">
+                                        {{ service.category.name }}
+                                    </span>
+                                    {% endif %}
                                     {% if service.is_online %}
                                         <span class="tag is-success">
                                              Online
@@ -105,6 +154,23 @@
                                              Offline
                                         </span>
                                     {% endif %}
+                                </div>
+                                <div class="mt-3">
+
+                                    <p class="is-size-7 has-text-grey mb-1">
+                                        Historia
+                                    </p>
+
+                                    {% for history in service_item.history %}
+
+                                        {% if history.is_online %}
+                                            <span class="tag is-success is-rounded"></span>
+                                        {% else %}
+                                            <span class="tag is-danger is-rounded"></span>
+                                        {% endif %}
+
+                                    {% endfor %}
+
                                 </div>
                                 <footer class="card-footer">
                                     {% if service.url_name %}
@@ -257,6 +323,83 @@
         });
     </script>
 
-   
+   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+{{ cpu_chart|json_script:"cpu-chart" }}
+{{ ram_chart|json_script:"ram-chart" }}
+
+<script>
+
+const cpu =
+JSON.parse(
+document.getElementById("cpu-chart").textContent
+);
+
+const ram =
+JSON.parse(
+document.getElementById("ram-chart").textContent
+);
+
+new Chart(
+
+document.getElementById("cpuChart"),
+
+{
+
+type: "line",
+
+data: {
+
+labels: cpu.map((_, i) => i),
+
+datasets: [{
+
+label: "CPU %",
+
+data: cpu,
+
+fill: true,
+
+tension: .4
+
+}]
+
+}
+
+}
+
+);
+
+new Chart(
+
+document.getElementById("ramChart"),
+
+{
+
+type: "line",
+
+data: {
+
+labels: ram.map((_, i) => i),
+
+datasets: [{
+
+label: "RAM %",
+
+data: ram,
+
+fill: true,
+
+tension: .4
+
+}]
+
+}
+
+}
+
+);
+
+</script>
 </body>
 </html>

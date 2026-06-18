@@ -1,6 +1,8 @@
 import json
 import base64
 import hashlib
+import psutil
+import requests
 from functools import lru_cache
 from datetime import timedelta
 from urllib.parse import urlparse
@@ -19,11 +21,35 @@ NBA_SCORES_URL = "https://www.thesportsdb.com/api/v1/json/3/eventspastleague.php
 CLEARBIT_COMPANY_SEARCH_URL = "https://autocomplete.clearbit.com/v1/companies/suggest?query={query}"
 SERVICE_STATUS_CHECK_TIMEOUT = 3
 SERVICE_STATUS_REFRESH_INTERVAL = timedelta(minutes=30)
+from .models import SystemMetric, Category
 
+
+def save_system_metrics():
+
+    memory = psutil.virtual_memory()
+
+    SystemMetric.objects.create(
+
+        cpu_percent=psutil.cpu_percent(),
+
+        ram_percent=memory.percent,
+
+        disk_percent=psutil.disk_usage("/").percent
+    )
 
 def _normalize_service_query(service_name):
     return " ".join(part for part in service_name.replace("-", " ").split() if part).strip()
 
+def get_system_stats():
+    memory = psutil.virtual_memory()
+
+    return {
+        "cpu_percent": psutil.cpu_percent(interval=0.5),
+        "ram_percent": memory.percent,
+        "ram_used": round(memory.used / (1024 ** 3), 1),
+        "ram_total": round(memory.total / (1024 ** 3), 1),
+        "disk_percent": psutil.disk_usage("/").percent,
+    }
 
 def _service_search_queries(service_name):
     normalized_name = _normalize_service_query(service_name)
@@ -187,7 +213,6 @@ def build_service_display(service):
     fallback_logo_url = _fallback_logo_data_uri(service.name)
     logo_url = brand_logo_url or favicon_url or fallback_logo_url
     live_is_online = _refresh_service_status_if_needed(service)
-
     return {
         "service": service,
         "logo_url": logo_url,
@@ -197,7 +222,6 @@ def build_service_display(service):
         "is_online": live_is_online,
         "stored_is_online": service.is_online,
     }
-
 
 def fetch_recent_nba_scores(limit=5):
     try:
@@ -231,6 +255,24 @@ def fetch_recent_nba_scores(limit=5):
 
 def build_home_context(form=None, form_modal_open=False):
     nba_scores, nba_scores_error = fetch_recent_nba_scores()
+    metrics = SystemMetric.objects.order_by("-created_at")[:20]
+
+    cpu = []
+    ram = []
+
+    for m in reversed(metrics):
+
+        cpu.append(m.cpu_percent)
+        ram.append(m.ram_percent)
+    services = []
+
+    for service in Service.objects.all():
+
+        item = build_service_display(service)
+
+        item["history"] = service.history.all()[:8]
+
+        services.append(item)
     return {
         "services": [build_service_display(service) for service in Service.objects.all().order_by("name")],
         "media_panels": MediaPanel.objects.all(),
@@ -238,7 +280,13 @@ def build_home_context(form=None, form_modal_open=False):
         "form_modal_open": form_modal_open,
         "nba_scores": nba_scores,
         "nba_scores_error": nba_scores_error,
+        "system_stats": get_system_stats(),
+        "services": services,
+        "cpu_chart": cpu,
+        "ram_chart": ram,
+        "categories": Category.objects.prefetch_related("service_set"),
     }
+    
 
 class HomeView(View):
     template_name = "dashboard.html"
