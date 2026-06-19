@@ -1,12 +1,21 @@
 import json
 import base64
 import hashlib
+import ssl
 import psutil
 from functools import lru_cache
 from datetime import timedelta
 from urllib.parse import urlparse, quote_plus
 from urllib.error import URLError, HTTPError
 from urllib.request import Request, urlopen
+
+# Unverified SSL context — acceptable for LAN/homelab probing where
+# self-signed certs and WSL certificate-bundle issues are common.
+_PROBE_SSL_CTX = ssl.create_default_context()
+_PROBE_SSL_CTX.check_hostname = False
+_PROBE_SSL_CTX.verify_mode = ssl.CERT_NONE
+
+_PROBE_HEADERS = {"User-Agent": "HomeLab-Dashboard/1.0 (uptime-check)"}
 
 from django.shortcuts import redirect, render
 from django.utils import timezone
@@ -17,8 +26,8 @@ from .models import Service, MediaPanel, SystemMetric, Category, ServiceStatus
 
 NBA_SCORES_URL = "https://www.thesportsdb.com/api/v1/json/3/eventspastleague.php?id=4387"
 CLEARBIT_COMPANY_SEARCH_URL = "https://autocomplete.clearbit.com/v1/companies/suggest?query={query}"
-SERVICE_STATUS_CHECK_TIMEOUT = 3
-SERVICE_STATUS_REFRESH_INTERVAL = timedelta(minutes=30)
+SERVICE_STATUS_CHECK_TIMEOUT = 5
+SERVICE_STATUS_REFRESH_INTERVAL = timedelta(minutes=10)
 
 
 def save_system_metrics():
@@ -152,21 +161,22 @@ def _service_probe_urls(service):
 
 
 def _probe_url_is_online(url):
-    request = Request(url, method="HEAD")
-
-    try:
-        with urlopen(request, timeout=SERVICE_STATUS_CHECK_TIMEOUT) as response:
-            return 200 <= getattr(response, "status", 200) < 400
-    except HTTPError as error:
-        if error.code in {405, 501}:
-            try:
-                with urlopen(Request(url, method="GET"), timeout=SERVICE_STATUS_CHECK_TIMEOUT) as response:
-                    return 200 <= getattr(response, "status", 200) < 400
-            except (URLError, HTTPError, TimeoutError, OSError):
-                return False
-        return 200 <= error.code < 400
-    except (URLError, TimeoutError, OSError):
-        return False
+    """Return True if the host responds at all — any HTTP status means reachable.
+    Only a connection error or timeout is treated as offline."""
+    for method in ("HEAD", "GET"):
+        req = Request(url, method=method, headers=_PROBE_HEADERS)
+        try:
+            with urlopen(req, timeout=SERVICE_STATUS_CHECK_TIMEOUT, context=_PROBE_SSL_CTX):
+                return True
+        except HTTPError:
+            # Server responded with an HTTP error — host IS reachable.
+            return True
+        except (URLError, TimeoutError, OSError):
+            if method == "HEAD":
+                # Try GET before giving up (some servers drop HEAD entirely).
+                continue
+            return False
+    return False
 
 
 def _service_is_online(service):
